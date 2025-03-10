@@ -9,14 +9,15 @@ on:
 jobs:
   build:
     name: Build and analyze
-    runs-on: windows-latest
+    runs-on: ubuntu-latest  # Cambio a Linux
+    
     steps:
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: 17
           distribution: 'zulu'
-      
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -24,7 +25,7 @@ jobs:
       - name: Cache SonarQube Cloud packages
         uses: actions/cache@v4
         with:
-          path: ~\sonar\cache
+          path: ~/.sonar/cache  # Cambio de path para Linux
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
 
@@ -32,34 +33,39 @@ jobs:
         id: cache-sonar-scanner
         uses: actions/cache@v4
         with:
-          path: .\.sonar\scanner
+          path: .sonar/scanner  # Cambio de path para Linux
           key: ${{ runner.os }}-sonar-scanner
           restore-keys: ${{ runner.os }}-sonar-scanner
 
       - name: Install SonarQube Cloud scanner
         if: steps.cache-sonar-scanner.outputs.cache-hit != 'true'
-        shell: powershell
         run: |
-          New-Item -Path .\.sonar\scanner -ItemType Directory
-          dotnet tool update dotnet-sonarscanner --tool-path .\.sonar\scanner
+          mkdir -p .sonar/scanner
+          dotnet tool update dotnet-sonarscanner --tool-path .sonar/scanner
 
       - name: Build and analyze
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        shell: powershell
         run: |
-          .\.sonar\scanner\dotnet-sonarscanner begin /k:"JosephRobles23_pr_candidato" /o:"josephrobles23" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io"
+          export SONAR_SCANNER_OPTS="-Dsonar.verbose=true"
+          .sonar/scanner/dotnet-sonarscanner begin \
+            -k:"JosephRobles23_pr_candidato" \
+            -o:"josephrobles23" \
+            -d:sonar.token="${{ secrets.SONAR_TOKEN }}" \
+            -d:sonar.host.url="https://sonarcloud.io"
           dotnet build
-          .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+          .sonar/scanner/dotnet-sonarscanner end -d:sonar.token="${{ secrets.SONAR_TOKEN }}"
 
       - name: Check SonarQube Quality Gate
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          $qualityGateStatus = (Invoke-WebRequest -Uri "https://sonarcloud.io/api/qualitygates/project_status?projectKey=JosephRobles23_pr_candidato" -Headers @{"Authorization"="Basic $([Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes('${{ secrets.SONAR_TOKEN }}:')))" }).Content | ConvertFrom-Json
-          if ($qualityGateStatus.projectStatus.status -ne "OK") {
-            Write-Host "❌ Quality Gate failed :( : $($qualityGateStatus.projectStatus.statusReason)"
+          response=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" "https://sonarcloud.io/api/qualitygates/project_status?projectKey=JosephRobles23_pr_candidato")
+          status=$(echo $response | jq -r '.projectStatus.status')
+
+          if [ "$status" != "OK" ]; then
+            echo "❌ Quality Gate failed!"
             exit 1
-          } else {
-            Write-Host "✅ Quality Gate passed successfully! :)"
-          }
+          else
+            echo "✅ Quality Gate passed successfully!"
+          fi
