@@ -30,7 +30,6 @@ jobs:
       - name: Install required .NET workloads
         run: |
           dotnet workload install wasm-tools
-          dotnet workload install aspnetcore
 
 
 
