@@ -27,9 +27,12 @@ jobs:
         with:
           dotnet-version: '8.x'  # Asegura que .NET 8 está instalado
 
-      - name: Install .NET Web Application workload
+      - name: Install required .NET workloads
         run: |
-          dotnet workload install microsoft-visualstudio-web-build-tools  # Instala la carga de trabajo requerida
+          dotnet workload install wasm-tools
+          dotnet workload install aspnetcore
+
+
 
       - name: Cache SonarQube Cloud packages
         uses: actions/cache@v4
